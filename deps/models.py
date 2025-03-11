@@ -1,7 +1,6 @@
-from typing import Annotated
+from sqlmodel import Field, SQLModel
 
-from fastapi import Depends, FastAPI, HTTPException, Query
-from sqlmodel import Field, Session, SQLModel, create_engine, select
+from pydantic import BaseModel
 
 
 class CredentialBase(SQLModel):
@@ -23,7 +22,27 @@ class CallBackbBase(SQLModel):
 
 class ShopeeCredential(CredentialBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
-    
+
 
 class ShopeeCallback(CallBackbBase, table=True):
     id: int | None = Field(default=None, primary_key=True)
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    username: str | None = None
+
+
+class User(BaseModel):
+    username: str
+    email: str | None = None
+    full_name: str | None = None
+    disabled: bool | None = None
+
+
+class UserInDB(User):
+    hashed_password: str

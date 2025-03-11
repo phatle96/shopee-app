@@ -4,11 +4,11 @@ import hashlib
 import os
 
 HOST = os.getenv("HOST")
-PARTNER_ID = os.getenv("PARTNER_ID")
+PARTNER_ID = int(os.getenv("PARTNER_ID"))
 PARTNER_KEY = os.getenv("PARTNER_KEY")
 
 
-def encode(path: int | None = None, shop_id: int | None = None, redirect_url: str = ""):
+def encode_url(path: int | None = None, shop_id: int | None = None, redirect_url: str = ""):
     timest = int(time.time())
     tmp_base_string = "%s%s%s" % (PARTNER_ID, path, timest)
     if shop_id:
