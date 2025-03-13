@@ -11,7 +11,7 @@ from deps import scripts, models, app_oauth2
 # Production Environment：https://partner.shopeemobile.com/api/v2/shop/auth_partner
 # Sandbox Environment：https://partner.test-stable.shopeemobile.com/api/v2/shop/auth_partner
 
-PARTNER_ID = int(os.getenv("PARTNER_ID"))
+SHOPEE_PARTNER_ID = int(os.getenv("SHOPEE_PARTNER_ID"))
 
 
 def create_shop_auth_link(redirect_url: str, token: str):
@@ -30,10 +30,10 @@ def get_token_from_shopee(code, shop_id: str | None, main_account_id: str | None
         body = {
             "code": code,
             "main_account_id": main_account_id,
-            "partner_id": PARTNER_ID,
+            "partner_id": SHOPEE_PARTNER_ID,
         }
     else:
-        body = {"code": code, "shop_id": shop_id, "partner_id": PARTNER_ID}
+        body = {"code": code, "shop_id": shop_id, "partner_id": SHOPEE_PARTNER_ID}
 
     print("body", body)
     url = scripts.encode_url(path=path)
@@ -55,13 +55,13 @@ def refresh_token_from_shopee(
         body = {
             "merchant_id": merchant_id,
             "refresh_token": refresh_token,
-            "partner_id": PARTNER_ID,
+            "partner_id": SHOPEE_PARTNER_ID,
         }
     else:
         body = {
             "shop_id": shop_id,
             "refresh_token": refresh_token,
-            "partner_id": PARTNER_ID,
+            "partner_id": SHOPEE_PARTNER_ID,
         }
     url = scripts.encode_url(path=path)
     print("url: ", url)
