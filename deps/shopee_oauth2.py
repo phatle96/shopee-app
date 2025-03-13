@@ -3,18 +3,15 @@ from fastapi import Depends
 import os
 import json
 import requests
-from sqlmodel import Session
-import jwt
+from sqlmodel import Session, select
 
-from deps import scripts, models, oauth
+from deps import scripts, models, app_oauth2
 
 
 # Production Environment：https://partner.shopeemobile.com/api/v2/shop/auth_partner
 # Sandbox Environment：https://partner.test-stable.shopeemobile.com/api/v2/shop/auth_partner
 
 PARTNER_ID = int(os.getenv("PARTNER_ID"))
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
 
 
 def create_shop_auth_link(redirect_url: str, token: str):
@@ -76,27 +73,31 @@ def refresh_token_from_shopee(
 
 
 def auth_callback(
+    session: Session,
     token: str,
     code: str | None,
-    shop_id: str | None,
-    main_account_id: str | None,
-    session: Session,
+    shop_id: int | None,
+    main_account_id: int | None,
 ):
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user = payload.get("sub")
+        payload = scripts.jwt_decode(token)
+        user_id = int(payload.get("sub"))
 
-        if user:
+        if user_id:
             if shop_id or main_account_id:
                 shop_id = int(shop_id) if shop_id else None
                 main_account_id = main_account_id if main_account_id else None
 
-                callback = models.ShopeeCallback(
-                    code=code, shopId=shop_id, merchantId=main_account_id
+                callback = models.ShopeeCallbackInDB(
+                    code=code,
+                    shop_id=shop_id,
+                    merchant_id=main_account_id,
+                    user_id=user_id,
+                    token=token,
                 )
 
-                db_callback = models.ShopeeCallback.model_validate(callback)
+                db_callback = models.ShopeeCallbackInDB.model_validate(callback)
 
                 session.add(db_callback)
                 session.commit()
@@ -107,25 +108,31 @@ def auth_callback(
                 )
 
                 if response["data"]:
-                    credential = models.ShopeeCredential(
-                        merchantId=main_account_id,
-                        shopId=shop_id,
-                        accessToken=response["data"]["access_token"],
-                        refreshToken=response["data"]["refresh_token"],
-                        requestId=response["data"]["request_id"],
-                        expireIn=response["data"]["expire_in"],
+                    credential = models.ShopeeCredentialsInDB(
+                        merchant_id=main_account_id,
+                        shop_id=shop_id,
+                        user_id=user_id,
+                        token=token,
+                        access_token=response["data"]["access_token"],
+                        refresh_token=response["data"]["refresh_token"],
+                        request_id=response["data"]["request_id"],
+                        expire_in=response["data"]["expire_in"],
                     )
 
                 else:
-                    credential = models.ShopeeCredential(
-                        merchantId=main_account_id,
-                        shopId=shop_id,
-                        authError=response["error"]["error"],
-                        authMessage=response["error"]["message"],
-                        requestId=response["error"]["request_id"],
+                    credential = models.ShopeeCredentialsInDB(
+                        merchant_id=main_account_id,
+                        shop_id=shop_id,
+                        user_id=user_id,
+                        token=token,
+                        auth_error=response["error"]["error"],
+                        auth_message=response["error"]["message"],
+                        request_id=response["error"]["request_id"],
                     )
 
-                valid_credential = models.ShopeeCredential.model_validate(credential)
+                valid_credential = models.ShopeeCredentialsInDB.model_validate(
+                    credential
+                )
                 session.add(valid_credential)
                 session.commit()
                 session.refresh(valid_credential)
@@ -133,7 +140,33 @@ def auth_callback(
                 return valid_credential
 
         else:
-            raise oauth.credentials_exception
+            raise app_oauth2.credentials_exception
 
     except Exception as e:
-        raise oauth.credentials_exception
+        raise app_oauth2.credentials_exception
+
+
+def get_token(session: Session, token: str):
+
+    try:
+        payload = scripts.jwt_decode(token)
+        user_id = int(payload.get("sub"))
+
+        if user_id:
+            credential = session.exec(
+                select(models.ShopeeCredentialsInDB).where(
+                    models.ShopeeCredentialsInDB.user_id == user_id
+                )
+            ).first()
+
+            if credential:
+                return credential
+            else:
+                raise app_oauth2.credentials_exception
+
+        else:
+            raise app_oauth2.credentials_exception
+
+    except Exception as e:
+        raise app_oauth2.credentials_exception
+        # raise e
